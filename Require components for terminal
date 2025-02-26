@@ -7,4 +7,8 @@ php -r "unlink('composer-setup.php');"
 cd /path/to/your/project
 #Initialite 
 composer init
+#Install dependencies 
+composer require php-amqplib/php-amqplib
+#To Update composer to it's latest update
+sudo composer self-update
 
