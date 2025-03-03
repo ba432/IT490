@@ -1,13 +1,10 @@
-#Look at why we need autoload for this to work
-#Install 
-
 <?php
 require_once __DIR__ . '/vendor/autoload.php';
 use PhpAmqpLib\Connection\AMQPStreamConnection;
 
 // Database connection
 $host = 'localhost';
-$dbname = 'auth_system';
+$dbname = 'IT490';
 $user = 'root';
 $pass = '';
 
@@ -31,8 +28,11 @@ $callback = function ($msg) use ($pdo) {
 
     if ($msg->get('routing_key') === 'registration') {
         // Handle registration
-        $stmt = $pdo->prepare("INSERT INTO users (username, password) VALUES (:username, :password)");
-        $stmt->execute(['username' => $data['username'], 'password' => $data['password']]);
+        $stmt = $pdo->prepare("INSERT INTO users (username, password_hash) VALUES (:username, :password_hash)");
+        $stmt->execute([
+            'username' => $data['username'],
+            'password_hash' => password_hash($data['password'], PASSWORD_BCRYPT) // Hash the password
+        ]);
         echo "User registered: " . $data['username'] . "\n";
     } elseif ($msg->get('routing_key') === 'login') {
         // Handle login
@@ -40,10 +40,18 @@ $callback = function ($msg) use ($pdo) {
         $stmt->execute(['username' => $data['username']]);
         $user = $stmt->fetch();
 
-        if ($user && password_verify($data['password'], $user['password'])) {
+        if ($user && password_verify($data['password'], $user['password_hash'])) {
+            // Generate a session key
             $sessionKey = bin2hex(random_bytes(16));
-            $stmt = $pdo->prepare("UPDATE users SET session_key = :session_key WHERE id = :id");
-            $stmt->execute(['session_key' => $sessionKey, 'id' => $user['id']]);
+            $expiresAt = (new DateTime('+1 hour'))->format('Y-m-d H:i:s'); // Set expiration time
+
+            // Insert session into the `sessions` table
+            $stmt = $pdo->prepare("INSERT INTO sessions (user_id, session_key, expires_at) VALUES (:user_id, :session_key, :expires_at)");
+            $stmt->execute([
+                'user_id' => $user['id'],
+                'session_key' => $sessionKey,
+                'expires_at' => $expiresAt
+            ]);
             echo "Login successful: " . $data['username'] . "\n";
         } else {
             echo "Login failed: " . $data['username'] . "\n";
