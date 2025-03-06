@@ -5,8 +5,8 @@ use PhpAmqpLib\Connection\AMQPStreamConnection;
 // Database connection
 $host = 'localhost';
 $dbname = 'IT490';
-$user = 'root';
-$pass = ''; // Replace with your MySQL root password
+$user = 'basit';
+$pass = 'password'; // Replace with your MySQL root password
 
 try {
     $pdo = new PDO("mysql:host=$host;dbname=$dbname", $user, $pass);

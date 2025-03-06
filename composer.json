@@ -1,4 +1,4 @@
-
+{
 "require": {
     "php-amqplib/php-amqplib": "^3.2"
 }
