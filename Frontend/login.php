@@ -1,22 +1,18 @@
 <?php
+session_start();
 require_once __DIR__ . '/vendor/autoload.php';
 use PhpAmqpLib\Connection\AMQPStreamConnection;
 use PhpAmqpLib\Message\AMQPMessage;
 
-define('RABBITMQ_HOST', 'localhost');
-define('RABBITMQ_PORT', 5672);
-define('RABBITMQ_USER', 'guest');
-define('RABBITMQ_PASS', 'guest');
-define('QUEUE_NAME', 'login');
 
 function sendToQueue($message) {
-    $connection = new AMQPStreamConnection(RABBITMQ_HOST, RABBITMQ_PORT, RABBITMQ_USER, RABBITMQ_PASS);
+    $connection = new AMQPStreamConnection('localhost', 5672, 'guest', 'guest');
     $channel = $connection->channel();
     
-    $channel->queue_declare(QUEUE_NAME, false, true, false, false);
+    $channel->queue_declare('login', false, true, false, false);
 
     $msg = new AMQPMessage(json_encode($message), ['delivery_mode' => 2]);
-    $channel->basic_publish($msg, '', QUEUE_NAME);
+    $channel->basic_publish($msg, '', 'login');
 
     $channel->close();
     $connection->close();
@@ -35,17 +31,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ];
     
         sendToQueue($message);
-        $success = "Login request sent. Please wait...";
+
+        $pdo = new PDO("mysql:host=localhost;dbname=IT490", 'basit', 'password');
+        $stmt = $pdo->prepare("SELECT session_key FROM sessions WHERE user_id = (SELECT id FROM users WHERE username = :username) ORDER BY created_at DESC LIMIT 1");
+        $stmt->execute(['username' => $username]);
+        $session = $stmt->fetch();
+
+        if ($session) {
+            $_SESSION['username'] = $username;
+            $_SESSION['session_key'] = $session['session_key'];
+            header("Location: dashboard.php");
+            exit();
+        } else {
+            $error = "Invalid login credentials.";
+        }
     }
 }
 ?>
+
 
 <!DOCTYPE html>
 <html lang="en">
 <head>
 	<meta charset="UTF-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-	<link rel="stylesheet" href="CSS/styles.css">
+	<link rel="stylesheet" href="Frontend/CSS/styles.css">
 </head>
 
 <body>
@@ -57,16 +67,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 			<div>
 				<div class="input_box">
 					<label for="email">Username</label>
-					<input type="text" id="username" name="username" required />
+					<input type="text" id="username" name="username" placeholder="Enter username"/>
 				</div>
 				<div class="input_box">
 					<div>
 						<label for="password">Password</label>
 					</div>
-					<input type="password" id="password" name="password" required />
+					<input type="password" id="password" name="password" placeholder="Enter password"/>
 				</div>
 				<button type="submit">Log In</button>
-				<p class="sign_up">Don't have an account? <a href="register.html">Sign up</a></p>
+				<p class="sign_up">Don't have an account? <a href="register.php">Sign up</a></p>
 		</form>
 	</div>
 </body>
