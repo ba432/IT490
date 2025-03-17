@@ -1,10 +1,9 @@
 <?php
-// RabbitMQ connection
 require_once __DIR__ . '/vendor/autoload.php';
 use PhpAmqpLib\Connection\AMQPStreamConnection;
 use PhpAmqpLib\Message\AMQPMessage;
 
-$connection = new AMQPStreamConnection('rabbitmq', 5672, 'myuser', 'mypassword');
+$connection = new AMQPStreamConnection('localhost', 5672, 'myuser', 'mypassword');
 $channel = $connection->channel();
 $channel->queue_declare('registration', false, true, false, false);
 

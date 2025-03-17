@@ -9,17 +9,37 @@
 
 <body>
 	<ul>
-		<li><a class=active href="dashboard.html">Home</a></li>
-		<li><a href="movies.php">Movies</a></li>
-		<li><a href="profile.php">Profile</a></li>
+		<li><a href="dashboard.html">Home</a></li>
+		<li><a class=active href="movies.html">Movies</a></li>
+		<li><a href="profile.html">Profile</a></li>
 		<li class="logout" style="float:right;"><a href="">Logout</a></li>
 	</ul>
 
-	<h2>Main Content</h2>
-	<div class="maintext">
-		<p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Maecenas sit amet pretium urna. Vivamus venenatis velit nec neque ultricies, eget elementum magna tristique. Quisque vehicula, risus eget aliquam placerat, purus leo tincidunt eros, eget luctus quam orci in velit. Praesent scelerisque tortor sed accumsan convallis.</p>
-		<p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Maecenas sit amet pretium urna. Vivamus venenatis velit nec neque ultricies, eget elementum magna tristique. Quisque vehicula, risus eget aliquam placerat, purus leo tincidunt eros, eget luctus quam orci in velit. Praesent scelerisque tortor sed accumsan convallis.</p>
-	  </div>
+	<input class="search" type="text" placeholder="Search..">
+
+	<div class="container">
+		<div class="row mt-5">
+			<div class="col">
+				<div class="card mt-5">
+					<div class="card-header">
+						<h2 class="display-6 text-center">Movies List</h2>
+					</div>
+					<div class="card-body">
+						<table class="table table-bordered text-center">
+							<tr class="a">
+								<td> Movie ID </td>
+								<td> Movie Title </td>
+								<td> Rating </td>
+								<td> Favorite </td>
+								<td> Status </td>
+								<td> Added </td>
+							</tr>
+						</table>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
 
 </body>
 
