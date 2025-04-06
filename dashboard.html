@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Movie Dashboard</title>
+    <style>
+        .favorite-btn { background: none; border: none; cursor: pointer; font-size: 1.2em; }
+        .favorited { color: gold; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 10px; text-align: left; border-bottom: 1px solid #ddd; }
+        .search-container { margin: 20px; text-align: center; }
+    </style>
+</head>
+<body>
+    <div class="search-container">
+        <input type="text" id="searchInput" placeholder="Search your movies...">
+        <button id="searchBtn">Search DB</button>
+        <button id="fetchFromApiBtn">Fetch New from OMDB</button>
+    </div>
+
+    <table id="moviesTable">
+        <thead>
+            <tr>
+                <th>Movie</th>
+                <th>Status</th>
+                <th>Rating</th>
+                <th>Favorite</th>
+            </tr>
+        </thead>
+        <tbody id="moviesBody">
+            <!-- Filled by JavaScript -->
+        </tbody>
+    </table>
+
+    <script>
+        // Current user (from sessions)
+        const CURRENT_USER_ID = 1; // Hardcoded for demo (replace with session check)
+
+        // Load movies FROM DATABASE
+        async function loadMovies(searchTerm = "") {
+            try {
+                const response = await fetch(`http://your-listener:3000/movies?user_id=${CURRENT_USER_ID}&search=${encodeURIComponent(searchTerm)}`);
+                const movies = await response.json();
+                renderMovies(movies);
+            } catch (error) {
+                console.error("DB Load Error:", error);
+            }
+        }
+
+        // Render movies
+        function renderMovies(movies) {
+            const tbody = document.getElementById("moviesBody");
+            tbody.innerHTML = movies.map(movie => `
+                <tr>
+                    <td>${movie.movie_title}</td>
+                    <td>${movie.status}</td>
+                    <td>${movie.rating || 'N/A'}</td>
+                    <td>
+                        <button class="favorite-btn ${movie.is_favorite ? 'favorited' : ''}" 
+                                onclick="toggleFavorite(${movie.id}, ${movie.is_favorite})">♥</button>
+                    </td>
+                </tr>
+            `).join("");
+        }
+
+        // Toggle favorite IN DATABASE
+        async function toggleFavorite(movieId, isCurrentlyFavorite) {
+            try {
+                await fetch(`http://your-listener:3000/favorite`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        user_id: CURRENT_USER_ID,
+                        movie_id: movieId,
+                        set_favorite: !isCurrentlyFavorite 
+                    })
+                });
+                loadMovies(document.getElementById("searchInput").value);
+            } catch (error) {
+                console.error("Favorite Error:", error);
+            }
+        }
+
+        // Fetch new movies FROM OMDB -> STORE IN DB
+        async function fetchFromOMDB() {
+            const searchTerm = document.getElementById("searchInput").value.trim();
+            if (!searchTerm) return alert("Enter a search term!");
+
+            try {
+                await fetch(`http://your-listener:3000/fetch-movies`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        user_id: CURRENT_USER_ID,
+                        search_term: searchTerm 
+                    })
+                });
+                loadMovies(searchTerm); // Reload from DB
+            } catch (error) {
+                console.error("OMDB Fetch Error:", error);
+            }
+        }
+
+        // Event listeners
+        document.getElementById("searchBtn").addEventListener("click", () => {
+            loadMovies(document.getElementById("searchInput").value);
+        });
+
+        document.getElementById("fetchFromApiBtn").addEventListener("click", fetchFromOMDB);
+
+        // Initial load
+        loadMovies();
+    </script>
+</body>
+</html>
