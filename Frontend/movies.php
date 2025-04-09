@@ -1,13 +1,21 @@
+<?php
+session_start();
+
+if (!isset($_SESSION['user_id']) || !isset($_SESSION['session_key'])) {
+    header("Location: login.php");
+    exit();
+}
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Movie Explorer</title>
-    <link rel="stylesheet" href="CSS/Movie.css">
+    <link rel="stylesheet" href="Frontend/CSS/movies.css">
+    <title>Movies</title>
 </head>
 <body>
-    <!-- Navigation (Same as dashboard.html) -->
+<body>
     <ul>
         <li><a href="dashboard.php">Home</a></li>
         <li><a class="active" href="movies.php">Movies</a></li>
@@ -15,104 +23,193 @@
         <li class="logout" style="float:right;"><a href="logout.php">Logout</a></li>
     </ul>
 
-    <!-- Search & Filters -->
-    <div class="movie-controls">
-        <div class="search-container">
-            <input type="text" id="searchInput" class="search-input" placeholder="Search movies..." value="movie">
-        </div>
-        <div class="filter-container">
-            <select id="typeFilter">
-                <option value="">All Types</option>
-                <option value="movie">Movies</option>
-                <option value="series">TV Shows</option>
-            </select>
-        </div>
-        <div class="filter-container">
-            <select id="yearFilter">
-                <option value="">All Years</option>
-                <option value="2023">2023</option>
-                <option value="2022">2022</option>
-                <option value="2021">2021</option>
-            </select>
-        </div>
+    <div class="search-container">
+        <input type="text" id="searchInput" placeholder="Search for movies...">
+        <button id="searchBtn">Search Collection</button>
+        <button id="fetchFromApiBtn">Get from API</button>
     </div>
 
-    <!-- Movie Grid -->
-    <div class="movie-grid" id="movieGrid">
-        <div class="loading">Loading movies...</div>
-    </div>
+    <div id="errorMessage" class="error"></div>
+    <div id="loadingIndicator" class="loading">Loading movies...</div>
+
+    <table id="moviesTable">
+        <thead>
+            <tr>
+                <th>Title</th>
+                <th>Year</th>
+                <th>Rating</th>
+                <th>Favorite</th>
+            </tr>
+        </thead>
+        <tbody id="moviesBody">
+        </tbody>
+    </table>
 
     <script>
-        // API Configuration
-        const OMDB_API_KEY = "9cf7c4c9"; // Your API key
-        let currentSearch = "movie"; // Default search
-        let currentPage = 1;
-        
-        // DOM Elements
-        const movieGrid = document.getElementById('movieGrid');
-        const searchInput = document.getElementById('searchInput');
-        const typeFilter = document.getElementById('typeFilter');
-        const yearFilter = document.getElementById('yearFilter');
-        
-        // Fetch movies from OMDB API
-        async function fetchMovies() {
-            movieGrid.innerHTML = '<div class="loading">Loading movies...</div>';
-            
+        const CURRENT_USER_ID = <?php echo json_encode($_SESSION['user_id']); ?>;
+        const searchInput = document.getElementById("searchInput");
+        const searchBtn = document.getElementById("searchBtn");
+        const fetchBtn = document.getElementById("fetchFromApiBtn");
+        const errorMsg = document.getElementById("errorMessage");
+        const loadingIndicator = document.getElementById("loadingIndicator");
+        const moviesBody = document.getElementById("moviesBody");
+
+        async function loadMovies(searchTerm = "") {
             try {
-                const type = typeFilter.value;
-                const year = yearFilter.value;
-                
-                const url = `https://www.omdbapi.com/?s=${encodeURIComponent(currentSearch)}&page=${currentPage}&apikey=${OMDB_API_KEY}${type ? `&type=${type}` : ''}${year ? `&y=${year}` : ''}`;
-                
-                const response = await fetch(url);
-                const data = await response.json();
-                
-                if (data.Response === "True") {
-                    displayMovies(data.Search);
-                } else {
-                    throw new Error(data.Error || "No movies found");
+                loadingIndicator.style.display = "block";
+                errorMsg.style.display = "none";
+
+                const response = await fetch(`movies_api.php?action=search&search=${encodeURIComponent(searchTerm)}`, {
+                    credentials: 'same-origin'
+                });
+
+                if (!response.ok) {
+                    const responseText = await response.text();
+                    throw new Error(`Server error: ${response.status} - ${responseText}`);
                 }
+
+                const data = await response.json();
+
+                if (!data.success) {
+                    throw new Error(data.error || "Unknown error occurred");
+                }
+
+                renderMovies(data.movies || []);
+
             } catch (error) {
-                movieGrid.innerHTML = `<div class="loading">${error.message}</div>`;
-                console.error("API Error:", error);
+                showError(`Failed to load movies: ${error.message}`);
+            } finally {
+                loadingIndicator.style.display = "none";
             }
         }
-        
-        // Display movies in grid
-        function displayMovies(movies) {
-            movieGrid.innerHTML = '';
-            
-            movies.forEach(movie => {
-                const movieCard = document.createElement('div');
-                movieCard.className = 'movie-card';
-                movieCard.innerHTML = `
-                    <img src="${movie.Poster !== "N/A" ? movie.Poster : 'https://via.placeholder.com/180x270?text=No+Poster'}" 
-                         alt="${movie.Title}" 
-                         class="movie-poster">
-                    <div class="movie-info">
-                        <div class="movie-title">${movie.Title}</div>
-                        <div class="movie-meta">
-                            <span>${movie.Year}</span>
-                            <span>${movie.Type}</span>
-                        </div>
-                    </div>
+
+        function renderMovies(movies) {
+            if (!movies || movies.length === 0) {
+                moviesBody.innerHTML = `
+                    <tr>
+                        <td colspan="4" class="no-results">
+                            No movies found. Try fetching some from OMDB!
+                        </td>
+                    </tr>
                 `;
-                movieGrid.appendChild(movieCard);
-            });
+                return;
+            }
+
+            moviesBody.innerHTML = movies.map(movie => `
+                <tr>
+                    <td>${movie.movie_title || 'N/A'}</td>
+                    <td>${movie.year || 'N/A'}</td>
+                    <td>${movie.rating || 'N/A'}</td>
+                    <td>
+                        <button class="favorite-btn ${movie.is_favorite ? 'favorited' : ''}" 
+                                onclick="toggleFavorite(${movie.id}, ${movie.is_favorite ? 'true' : 'false'})">♥</button>
+                    </td>
+                </tr>
+            `).join("");
         }
-        
+
+        async function toggleFavorite(movieId, isCurrentlyFavorite) {
+            try {
+                if (typeof isCurrentlyFavorite === 'string') {
+                    isCurrentlyFavorite = (isCurrentlyFavorite === 'true');
+                }
+
+                const response = await fetch('movies_api.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({
+                        action: 'favorite',
+                        movie_id: movieId,
+                        set_favorite: !isCurrentlyFavorite
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error: ${response.status}`);
+                }
+
+                const data = await response.json();
+
+                if (!data.success) {
+                    throw new Error(data.error || "Failed to update favorite status");
+                }
+
+                loadMovies(searchInput.value);
+
+            } catch (error) {
+                showError(`Favorite update failed: ${error.message}`);
+            }
+        }
+
+        async function fetchFromOMDB() {
+            const searchTerm = searchInput.value.trim();
+
+            if (!searchTerm) {
+                return showError("Please enter a search term");
+            }
+
+            try {
+                loadingIndicator.style.display = "block";
+                errorMsg.style.display = "none";
+
+                const response = await fetch('movies_api.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({
+                        action: 'fetch',
+                        search: searchTerm
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error: ${response.status}`);
+                }
+
+                const data = await response.json();
+
+                if (!data.success) {
+                    throw new Error(data.error || "Failed to fetch from OMDB");
+                }
+
+                showError(`Successfully found ${data.count} movies!`, false);
+                loadMovies(searchTerm);
+
+            } catch (error) {
+                showError(`OMDB fetch failed: ${error.message}`);
+            } finally {
+                loadingIndicator.style.display = "none";
+            }
+        }
+
+        function showError(message, isError = true) {
+            errorMsg.textContent = message;
+            errorMsg.style.display = "block";
+            errorMsg.style.backgroundColor = isError ? "#ffebee" : "#e8f5e9";
+            errorMsg.style.color = isError ? "#f44336" : "#4caf50";
+
+            setTimeout(() => {
+                errorMsg.style.display = "none";
+            }, 5000);
+        }
+
         // Event Listeners
-        searchInput.addEventListener('input', (e) => {
-            currentSearch = e.target.value.trim() || "movie";
-            currentPage = 1;
-            fetchMovies();
+        searchBtn.addEventListener("click", () => {
+            loadMovies(searchInput.value.trim());
         });
-        
-        typeFilter.addEventListener('change', fetchMovies);
-        yearFilter.addEventListener('change', fetchMovies);
-        
-        // Initialize
-        fetchMovies();
+
+        fetchBtn.addEventListener("click", fetchFromOMDB);
+
+        searchInput.addEventListener("keypress", (e) => {
+            if (e.key === "Enter") {
+                loadMovies(searchInput.value.trim());
+            }
+        });
+
+        document.addEventListener("DOMContentLoaded", () => {
+            loadMovies();
+        });
     </script>
 </body>
 </html>
