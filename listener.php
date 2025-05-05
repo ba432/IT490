@@ -17,7 +17,7 @@ try {
 }
 
 // RabbitMQ connection
-$connection = new AMQPStreamConnection('localhost', 5672, 'guest', 'guest');
+$connection = new AMQPStreamConnection('172.30.105.40', 5672, 'test', 'test');
 $channel = $connection->channel();
 
 // Declare queues
@@ -26,6 +26,8 @@ $channel->queue_declare('login', false, true, false, false);
 $channel->queue_declare('movies_search', false, true, false, false);
 $channel->queue_declare('omdb_fetch', false, true, false, false);
 $channel->queue_declare('movie_favorite', false, true, false, false);
+
+echo "Waiting for messages...\n";
 
 $callback = function ($msg) use ($pdo, $channel) {
     $data = json_decode($msg->body, true);
@@ -36,7 +38,7 @@ $callback = function ($msg) use ($pdo, $channel) {
             case 'registration':
                 $stmt = $pdo->prepare("INSERT INTO users (username, password_hash) VALUES (?, ?)");
                 $stmt->execute([$data['username'], password_hash($data['password'], PASSWORD_BCRYPT)]);
-                $response = ['success' => true, 'message' => "User registered"];
+                $response = ['success' => true, 'message' => "User registered: " . $data['username']];
                 break;
                 
             case 'login':
@@ -93,11 +95,12 @@ $callback = function ($msg) use ($pdo, $channel) {
                 break;
 
             case 'movie_favorite':
+                $isFavorite = $data['set_favorite'] ? 1 : 0;
                 $stmt = $pdo->prepare(
                     "UPDATE movies SET is_favorite = ? 
                     WHERE id = ? AND user_id = ?"
                 );
-                $stmt->execute([$data['set_favorite'], $data['movie_id'], $data['user_id']]);
+                $stmt->execute([$isFavorite, $data['movie_id'], $data['user_id']]);
                 $response = ['success' => true];
                 break;
 
